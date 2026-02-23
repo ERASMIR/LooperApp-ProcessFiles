@@ -293,9 +293,11 @@ def LooperProcesFile4(req: func.HttpRequest) -> func.HttpResponse:
         if not isinstance(body, dict):
             return func.HttpResponse("❌ El cuerpo del request no es un JSON válido.", status_code=400)
 
-        matrix_path = body.get("matrixUrl")
-        sales_path = body.get("salesUrl")
-        gransic_id = body.get("gransic_id")
+        matrix_path       = body.get("matrixUrl")
+        sales_path        = body.get("salesUrl")
+        gransic_id        = body.get("gransic_id")
+        matrix_column_map = body.get("matrixColumnMap")  # opcional
+        sales_column_map  = body.get("salesColumnMap")   # opcional
 
         if not matrix_path or not sales_path:
             logging.warning("⚠️ Faltan URLs de archivos en el request.")
@@ -304,6 +306,11 @@ def LooperProcesFile4(req: func.HttpRequest) -> func.HttpResponse:
         if not gransic_id:
             logging.warning("⚠️ Falta gransic_id en el request.")
             return func.HttpResponse("Falta gransic_id en el request.", status_code=400)
+
+        if matrix_column_map:
+            logging.info(f"🗂️ Mapeo de columnas Matriz recibido: {matrix_column_map}")
+        if sales_column_map:
+            logging.info(f"🗂️ Mapeo de columnas Ventas recibido: {sales_column_map}")
 
         matrix_resp = requests.get(matrix_path)
         sales_resp = requests.get(sales_path)
@@ -323,7 +330,11 @@ def LooperProcesFile4(req: func.HttpRequest) -> func.HttpResponse:
         logging.info(f"📥 matrix_resp.content: {type(matrix_resp.content)}")
         logging.info(f"📥 sales_resp.content: {type(sales_resp.content)}")
 
-        result = process_files4(matrix_resp.content, sales_resp.content, gransic_id)
+        result = process_files4(
+            matrix_resp.content, sales_resp.content, gransic_id,
+            matrix_column_map=matrix_column_map,
+            sales_column_map=sales_column_map,
+        )
 
         if not result or not result.get("drive_url"):
             return func.HttpResponse("Error durante el procesamiento o subida a Drive.", status_code=500)

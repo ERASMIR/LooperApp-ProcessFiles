@@ -5,15 +5,36 @@ from io import BytesIO
 from drive_uploader import upload_to_drive
 
 
-def process_files4(matrix_bytes, sales_bytes, gransic_id) -> dict:
+def apply_column_mapping(df, column_map):
+    """Renombra columnas del DataFrame usando el mapeo del usuario.
+
+    column_map: {nombre_esperado_por_el_sistema: nombre_real_en_el_archivo}
+    Ejemplo: {"SKU": "Código Producto", "TON": "Toneladas"}
+    """
+    if not column_map:
+        return df
+    # Invertimos: {nombre_real → nombre_esperado}, solo si son distintos y la columna existe
+    rename_dict = {
+        real: esperado
+        for esperado, real in column_map.items()
+        if real and real != esperado and real in df.columns
+    }
+    if rename_dict:
+        print(f"Renombrando columnas: {rename_dict}")
+        df = df.rename(columns=rename_dict)
+    return df
+
+
+def process_files4(matrix_bytes, sales_bytes, gransic_id,
+                   matrix_column_map=None, sales_column_map=None) -> dict:
     try:
         print("Iniciando procesamiento de archivos (v4)...")
 
         config = load_gransic_config(gransic_id)
         print(f"Config cargada para GRANSIC: {config['nombre']}")
 
-        matrix_data = get_file_data2(BytesIO(matrix_bytes))
-        sales_data = get_file_data2(BytesIO(sales_bytes))
+        matrix_data = get_file_data2(BytesIO(matrix_bytes), column_map=matrix_column_map)
+        sales_data  = get_file_data2(BytesIO(sales_bytes),  column_map=sales_column_map)
 
         print("Generando reporte...")
         report, log_info = generate_report4(matrix_data, sales_data, config)
@@ -184,10 +205,17 @@ def format_report4(sumadores, tiene_peligrosidad):
 
 # --- Funciones reutilizadas de v3 sin cambios ---
 
-def get_file_data2(file_like_obj):
-    """Lee y parsea un archivo Excel desde un objeto de tipo BytesIO."""
+def get_file_data2(file_like_obj, column_map=None):
+    """Lee y parsea un archivo Excel desde un objeto de tipo BytesIO.
+
+    Si se proporciona column_map, renombra las columnas antes de procesar.
+    column_map: {nombre_esperado: nombre_real_en_archivo}
+    """
     df = pd.read_excel(file_like_obj, dtype=str)
-    print(f"columnas del archivo: {df.columns.tolist()}")
+    print(f"columnas originales del archivo: {df.columns.tolist()}")
+    if column_map:
+        df = apply_column_mapping(df, column_map)
+        print(f"columnas tras mapeo: {df.columns.tolist()}")
     # Solo reemplazar comas por puntos en columnas numericas, no en texto
     columnas_numericas = ['TON', 'Cantidad', 'Peso', 'precio', 'Precio']
     for col in df.columns:
